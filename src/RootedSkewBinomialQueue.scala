@@ -60,19 +60,21 @@ object PriorityQueue{
 
     def comp: Ordering[T]
 
-    def isEmpty = (??? : Boolean)
-      .ensuring(res => res == this.toList.isEmpty)
+    def isEmpty = (??? : Boolean).ensuring(res => res == this.toList.isEmpty)
 
     def findMin = {
       require(!this.toList.isEmpty)
       (??? : T)
-    }.ensuring(res => res == this.toList.head)
+    }
 
-    def insert(x: T) = (??? : PriorityQueue[T])
-      .ensuring(res => res.toList == sort(x::this.toList)(this.comp))
+    def insert(x: T) = (??? : PriorityQueue[T]).ensuring(res => res.toList == sort(x::this.toList)(this.comp))
+      
     
-    def meld(that: PriorityQueue[T]) = (??? : PriorityQueue[T])
-      .ensuring(res => res.toList == sort(this.toList ++ that.toList)(this.comp))
+    def meld(that: PriorityQueue[T]) = {
+      require(that.isInstanceOf[this.type])
+      (??? : PriorityQueue[T])
+    }.ensuring(res => res.toList == sort(this.toList ++ that.toList)(this.comp))
+      
 
     def deleteMin = {
       require(!this.toList.isEmpty)
@@ -112,7 +114,7 @@ object PriorityQueue{
   case class SkewBinomialQueue[T](elems: Heap[T], comparator: Ordering[T]) extends PriorityQueue[T]{
     def comp: Ordering[T] = this.comparator
 
-    def isEmpty: Boolean = elems == Empty
+    def isEmpty: Boolean = {elems == Empty}.ensuring(res => res == this.toList.isEmpty)
 
     def  link(node1: Node[T], that: Node[T]): Node[T] = {
       if (comparator.compare(node1.value,that.value) <= 0) {
@@ -134,7 +136,7 @@ object PriorityQueue{
     def findMin: T = {
       require(!isEmpty)
       findMin_(this.elems).value
-    }
+    }.ensuring(res => res == this.toList.head)
 
     def findMin_(node: Heap[T]): Node[T] = {
       require(node != Empty)
@@ -145,11 +147,11 @@ object PriorityQueue{
       }
     }
 
-    def insert(x: T): SkewBinomialQueue[T] = this.elems match {
+    def insert(x: T): SkewBinomialQueue[T] = {this.elems match {
       case Nodes(q1, Nodes(q2, qs)) if q1.rank == q2.rank => SkewBinomialQueue(Nodes(skewLink(Node(x, 0, Empty), q1, q2), qs), this.comp)
       case Nodes(q1, Empty) => SkewBinomialQueue(Nodes(Node(x, 0, Empty), Nodes(q1, Empty)), this.comp)
       case Empty => SkewBinomialQueue(Nodes(Node(x, 0, Empty), Empty), this.comp)
-    }
+    }}.ensuring(res => res.toList == sort(x::this.toList)(this.comp))
 
     def insert_(y: Node[T], nodes: Heap[T]): Heap[T] = {
       decreases(nodes)
@@ -165,11 +167,20 @@ object PriorityQueue{
     }
 
     def meld(that: PriorityQueue[T]): PriorityQueue[T] = {
-      require(that.isInstanceOf[SkewBinomialQueue[T]])
+   //   require(that.isInstanceOf[SkewBinomialQueue[T]])
       that match {
         case SkewBinomialQueue(el, _) => SkewBinomialQueue(meld_(uniqify(elems), uniqify(el)), comparator)
+        case RootedPriorityQueue(el, _) => {
+          el match {
+            case Empty => this
+            case Nodes(n, ns) => {
+              val temp = SkewBinomialQueue(ns, comparator).insert(n.value).asInstanceOf[SkewBinomialQueue[T]]
+              meld(temp)
+            }
+          }
+        }
       }
-    }
+    }.ensuring(res => res.toList == sort(this.toList ++ that.toList)(this.comp))
 
     def meld_(q1: Heap[T], q2: Heap[T]): Heap[T] = {      
       (q1, q2) match {
@@ -219,7 +230,7 @@ object PriorityQueue{
       val (min, rest) = getMin(this.elems)
       val (ts0, xs0) = split(Empty, Empty, min.childrens)
       SkewBinomialQueue(foldInsert(xs0, meld_(rest,ts0)), this.comp)
-    }
+    }.ensuring(res => !res.toList.contains(this.findMin) && this.toList.size - 1 == (this.toList & res.toList).size)
 
     def split(q1: Heap[T], q2: Heap[T], q3: Heap[T]): (Heap[T], Heap[T]) = (q1, q2, q3) match {
       case(xs, ys, Empty) => (xs ,ys)
@@ -239,9 +250,9 @@ object PriorityQueue{
   case class RootedPriorityQueue[T](elems: Heap[T], comparator: Ordering[T]) extends PriorityQueue[T]{   
     def comp: Ordering[T] = this.comparator
 
-    def isEmpty: Boolean = elems == Empty
+    def isEmpty: Boolean = {elems == Empty}.ensuring(res => res == this.toList.isEmpty)
 
-    def insert(x: T): RootedPriorityQueue[T] = this.elems match {
+    def insert(x: T): PriorityQueue[T] = {this.elems match {
       case Empty => RootedPriorityQueue(Nodes(Node(x, 0, Empty), Empty), this.comparator)
       case Nodes(r, ns) => {
         if(comparator.compare(x,r.value) <= 0){
@@ -250,14 +261,14 @@ object PriorityQueue{
            RootedPriorityQueue(Nodes(r, SkewBinomialQueue(ns, this.comparator).insert(x).elems), this.comparator)
         }
       }
-    }
+    }}.ensuring(res => res.toList == sort(x::this.toList)(this.comp))
 
     def findMin: T = {
       require(!this.isEmpty)
       elems match{
         case Nodes(r,ns) => r.value
       }
-    }
+    }.ensuring(res => res == this.toList.head)
     
     def deleteMin: PriorityQueue[T] = {
       require(!this.isEmpty)
@@ -271,9 +282,11 @@ object PriorityQueue{
             }
         }
       }      
-    }
+    }.ensuring(res => !res.toList.contains(this.findMin) && this.toList.size - 1 == (this.toList & res.toList).size)
 
-  def meld(that: PriorityQueue[T]): PriorityQueue[T] = this.elems match{
+  def meld(that: PriorityQueue[T]): PriorityQueue[T] = {
+    //require(that.isInstanceOf[RootedPriorityQueue[T]])
+    this.elems match{
     case Empty => that
     case Nodes(x1,q1) => that match {
         case RootedPriorityQueue(elems_,_) => elems_ match {
@@ -289,8 +302,20 @@ object PriorityQueue{
             }
           } 
         }
+        case SkewBinomialQueue(el, _) => {
+        el match {
+          case Empty => this
+          case Nodes(n, ns) => {
+            val temp = RootedPriorityQueue(Nodes(Node(that.findMin, 0, Empty), that.deleteMin.asInstanceOf[SkewBinomialQueue[T]].elems), this.comparator)
+            meld(temp)
+          }
+        }
+      }
+      
+      }
     }
-  }
+  }.ensuring(res => res.toList == sort(this.toList ++ that.toList)(this.comp))
+
 
     def toList = this.elems match{
       case Empty => List()
