@@ -112,7 +112,7 @@ object PriorityQueue{
   case class SkewBinomialQueue[T](elems: Heap[T], comparator: Ordering[T]) extends PriorityQueue[T]{
     def comp: Ordering[T] = this.comparator
 
-    def isEmpty: Boolean = elems == Empty
+    def isEmpty: Boolean = {elems == Empty}.ensuring(res => res == this.toList.isEmpty)
 
     def  link(node1: Node[T], that: Node[T]): Node[T] = {
       if (comparator.compare(node1.value,that.value) <= 0) {
@@ -134,7 +134,7 @@ object PriorityQueue{
     def findMin: T = {
       require(!isEmpty)
       findMin_(this.elems).value
-    }
+    }.ensuring(res => res == this.toList.head)
 
     def findMin_(node: Heap[T]): Node[T] = {
       require(node != Empty)
@@ -145,11 +145,14 @@ object PriorityQueue{
       }
     }
 
-    def insert(x: T): SkewBinomialQueue[T] = this.elems match {
-      case Nodes(q1, Nodes(q2, qs)) if q1.rank == q2.rank => SkewBinomialQueue(Nodes(skewLink(Node(x, 0, Empty), q1, q2), qs), this.comp)
-      case Nodes(q1, Empty) => SkewBinomialQueue(Nodes(Node(x, 0, Empty), Nodes(q1, Empty)), this.comp)
-      case Empty => SkewBinomialQueue(Nodes(Node(x, 0, Empty), Empty), this.comp)
-    }
+    def insert(x: T): SkewBinomialQueue[T] = {
+      this.elems match {
+          case Nodes(q1, Nodes(q2, qs)) if q1.rank == q2.rank => SkewBinomialQueue(Nodes(skewLink(Node(x, 0, Empty), q1, q2), qs), this.comp)
+          case Nodes(q1, Empty) => SkewBinomialQueue(Nodes(Node(x, 0, Empty), Nodes(q1, Empty)), this.comp)
+          case Empty => SkewBinomialQueue(Nodes(Node(x, 0, Empty), Empty), this.comp)
+        }
+      }.ensuring(res => res.toList == sort(x::this.toList)(this.comp))
+
 
     def insert_(y: Node[T], nodes: Heap[T]): Heap[T] = {
       decreases(nodes)
@@ -168,7 +171,7 @@ object PriorityQueue{
       that match {
         case SkewBinomialQueue(el, _) => SkewBinomialQueue(meld_(uniqify(elems), uniqify(el)), comparator)
       }
-    }
+    }.ensuring(res => res.toList == sort(this.toList ++ that.toList)(this.comp))
 
     def meld_(q1: Heap[T], q2: Heap[T]): Heap[T] = {      
       (q1, q2) match {
@@ -218,7 +221,7 @@ object PriorityQueue{
       val (min, rest) = getMin(this.elems)
       val (ts0, xs0) = split(Empty, Empty, min.childrens)
       SkewBinomialQueue(foldInsert(xs0, meld_(rest,ts0)), this.comp)
-    }
+    }.ensuring(res => !res.toList.contains(this.findMin) && this.toList.size - 1 == (this.toList & res.toList).size)
 
     def split(q1: Heap[T], q2: Heap[T], q3: Heap[T]): (Heap[T], Heap[T]) = (q1, q2, q3) match {
       case(xs, ys, Empty) => (xs ,ys)
@@ -229,6 +232,6 @@ object PriorityQueue{
           split(Nodes(t, xs), ys, c)
     }
 
-    def toList = sort(heapToList(this.elems))(this.comp)
+    def toList = sort(heapToList(this.elems))(this.comp).ensuring(res => isSorted(res)(this.comp))
   }
 }
