@@ -113,7 +113,7 @@ object PriorityQueue{
   case class BinomialQueue[T](elems: Heap[T], comparator: Ordering[T]) extends PriorityQueue[T]{
     def comp: Ordering[T] = this.comparator
 
-    def isEmpty: Boolean = {elems == Empty}
+    def isEmpty: Boolean = {elems == Empty}.ensuring(res => res == this.toList.isEmpty)
 
     def reverse(h : Heap[T]): Heap[T] = reverse_(h, Empty)
 
@@ -134,7 +134,7 @@ object PriorityQueue{
     def findMin: T = {
       require(!isEmpty)
       findMin_(this.elems).value
-    }
+    }.ensuring(res => res == this.toList.head)
 
     def findMin_(node: Heap[T]): Node[T] = {
       require(node != Empty)
@@ -147,9 +147,9 @@ object PriorityQueue{
 
     def insert(x: T): PriorityQueue[T] ={
       BinomialQueue(insert_(Node(x, 0, Empty), elems), comparator)    
-    }
+    }.ensuring(res => res.toList == sort(x::this.toList)(this.comp))
 
-    def insert_(y: Node[T],@induct nodes: Heap[T]): Heap[T] = {
+    def insert_(y: Node[T], nodes: Heap[T]): Heap[T] = {
       decreases(nodes)
       nodes match {
         case Empty => 
@@ -172,7 +172,8 @@ object PriorityQueue{
       that match {
         case BinomialQueue(el, _) => BinomialQueue(meld_(elems, el), comparator)
       }
-    }
+    }.ensuring(res => res.toList == sort(this.toList ++ that.toList)(this.comp))
+
 
     def meld_(q1: Heap[T], q2: Heap[T]): Heap[T] = {      
       (q1, q2) match {
@@ -211,8 +212,8 @@ object PriorityQueue{
       require(!this.isEmpty)
       val (min, rest) = getMin(this.elems)
       BinomialQueue(meld_(rest, reverse(min.childrens)), comparator)
-    }
+    }.ensuring(res => !res.toList.contains(this.findMin) && this.toList.size - 1 == (this.toList & res.toList).size)
 
-    def toList = {sort(heapToList(this.elems))(this.comp)}
+    def toList = {sort(heapToList(this.elems))(this.comp)}.ensuring(res => isSorted(res)(this.comp))
   }
 }
