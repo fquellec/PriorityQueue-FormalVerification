@@ -291,7 +291,7 @@ object PriorityQueue{
       }
     }
 
-    def toList: List[T] = sort(nodeToList(root)++queue.toList)
+    def toList: List[T] = sort(queue.toList.foldLeft(nodeToList(root)){(acc, q) => acc ++ q.toList})(this.comp)
   }
 
   case class EmptyBSBQ[T](comparator: Ordering[T], comp2: Ordering[BSBQ[T]]) extends PriorityQueue[T]{
